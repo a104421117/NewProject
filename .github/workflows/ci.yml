@@ -14,6 +14,7 @@ permissions:
 jobs:
   build:
     runs-on: windows-latest
+    timeout-minutes: 60
 
     steps:
       - name: Checkout repository
@@ -24,25 +25,35 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Display environment info
-        shell: cmd
-        run: |
-          echo === Node.js Version ===
-          node --version
-          echo === NPM Version ===
-          npm --version
+      - name: Cache Cocos Creator
+        id: cache-cocos
+        uses: actions/cache@v4
+        with:
+          path: CocosCreator
+          key: cocos-creator-3.8.7-win
 
       - name: Download Cocos Creator
+        if: steps.cache-cocos.outputs.cache-hit != 'true'
         shell: cmd
+        timeout-minutes: 20
         run: |
           echo === Downloading Cocos Creator 3.8.7 ===
           curl -L -o CocosCreator.zip "https://download.cocos.com/CocosCreator/v3.8.7/CocosCreator-v3.8.7-win-080718.zip"
-          echo === Extracting ===
+          echo === Download complete, extracting ===
           powershell -Command "Expand-Archive -Path CocosCreator.zip -DestinationPath CocosCreator -Force"
+          del CocosCreator.zip
+          echo === Extraction complete ===
+          dir CocosCreator
+
+      - name: Verify Cocos Creator
+        shell: cmd
+        run: |
+          echo === Cocos Creator files ===
           dir CocosCreator
 
       - name: Build Web Mobile
         shell: cmd
+        timeout-minutes: 15
         run: |
           echo === Building Web Mobile ===
           CocosCreator\CocosCreator.exe --project . --build "platform=web-mobile"
