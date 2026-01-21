@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [ master, main ]
 
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
 jobs:
   build:
     runs-on: windows-latest
@@ -22,29 +27,56 @@ jobs:
       - name: Display environment info
         shell: cmd
         run: |
-          echo === System Info ===
-          systeminfo | findstr /B /C:"OS Name" /C:"OS Version"
-          echo.
           echo === Node.js Version ===
           node --version
-          echo.
           echo === NPM Version ===
           npm --version
 
-      - name: List project files
+      - name: Download Cocos Creator
         shell: cmd
         run: |
-          echo === Project Structure ===
-          dir /B
+          echo === Downloading Cocos Creator 3.8.7 ===
+          curl -L -o CocosCreator.zip "https://download.cocos.com/CocosCreator/v3.8.7/CocosCreator-v3.8.7-win-080718.zip"
+          echo === Extracting ===
+          powershell -Command "Expand-Archive -Path CocosCreator.zip -DestinationPath CocosCreator -Force"
+          dir CocosCreator
 
-      - name: Validate package.json
+      - name: Build Web Mobile
         shell: cmd
         run: |
-          echo === Validating package.json ===
-          if exist package.json (
-            echo package.json found
-            type package.json
-          ) else (
-            echo package.json not found
-            exit /b 1
-          )
+          echo === Building Web Mobile ===
+          CocosCreator\CocosCreator.exe --project . --build "platform=web-mobile"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-build
+          path: build/web-mobile
+
+  deploy:
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: web-build
+          path: ./build
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload to Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./build
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
